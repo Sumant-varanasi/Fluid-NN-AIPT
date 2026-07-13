@@ -63,4 +63,34 @@ independent of sequence length and seed to <3%).
 - Cosine LR 3e-3 -> 1e-4, 50 epochs, batch 1024.
 
 Pre-flight (3 epochs, quarter-size data): CfC val MSE moving from epoch 1,
-already past its entire 40-epoch v2 trajectory. Full results pending.
+already past its entire 40-epoch v2 trajectory.
+
+**Results.**
+
+| model    | BER      | Q [dB] | EVM % | params | MACs/sym |
+|----------|----------|--------|-------|--------|----------|
+| CDC+CPE  | 8.72e-03 | 7.52   | 18.2  | 0      | 0        |
+| MLP      | 6.55e-03 | 7.89   | 9.7   | 64.9k  | 64.5k    |
+| BiLSTM   | 2.37e-03 | 9.02   | 13.4  | 20.5k  | 803k     |
+| CfC      | 4.10e-03 | 8.44   | 7.6   | 21.4k  | 438k     |
+
+**The CfC equalizer now works**: +0.92 dB Q over the baseline, better BER than the
+MLP, within 0.6 dB of the BiLSTM at 1.8x fewer MACs/symbol and equal parameter
+count. Constellation figure: docs/figures/spike_constellations.png.
+
+**Observations for the next iteration.**
+1. *MSE and BER rank models differently.* The CfC has by far the lowest EVM/MSE
+   (7.6% vs BiLSTM 13.4%) yet a 1.7x worse BER: its error distribution is
+   heavier-tailed -- rare large errors flip decisions while the bulk of symbols
+   sit tighter than the BiLSTM's. Visible as faint bridges between constellation
+   points in the figure. Worth a dedicated study (loss shaping / robust losses).
+2. *MLP overfit hard* under the hotter v3 recipe (train MSE 0.0005 vs val 0.005;
+   BER regressed vs v2's 3.24e-3). Per-model regularization/early-stopping needed
+   -- one shared recipe is no longer the fair choice once models differ this much.
+3. *BiLSTM was still improving* at epoch 50 (val MSE falling monotonically);
+   its ceiling is not yet reached. Same for CfC (train/val gap still small).
+
+**Next:** per-model training protocols, then the launch-power sweep and the
+adaptivity (channel-drift) study; a causal/streaming CfC variant for the
+real-time complexity story (368 MACs/symbol at h=8 -- three orders below the
+window-based BiLSTM).
