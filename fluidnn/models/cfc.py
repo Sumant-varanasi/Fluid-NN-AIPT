@@ -64,39 +64,67 @@ class CfCCell(nn.Module):
 
 
 class CfCEqualizer(nn.Module):
-    """Window-mode CfC: sweep the received window once, read out the final state.
+    """Window-mode CfC equalizer.
 
-    This is the apples-to-apples counterpart of the window-based baselines. The
-    cell also supports streaming (one step per new symbol, state carried
-    forward), which is the low-latency real-time deployment mode -- see
-    ``step()``.
+    Bidirectional by default: a forward and a backward cell sweep the window and
+    both are read out *at the center step*, mirroring the BiLSTM readout. (A
+    final-state readout demonstrably fails here: the center symbol's information
+    has to survive half a window of gated updates, and the network converges to
+    the identity -- see docs/notes/spike_v1_diagnosis.md and spike v2 logs.)
+
+    The cell also supports streaming (one step per new symbol, state carried
+    forward), the low-latency real-time deployment mode -- see ``step()``.
     """
 
-    def __init__(self, window_len: int, hidden: int = 24, backbone_units: int = 0):
+    def __init__(
+        self,
+        window_len: int,
+        hidden: int = 24,
+        backbone_units: int = 0,
+        bidirectional: bool = True,
+        in_channels: int = 2,
+    ):
         super().__init__()
         self.window_len = window_len
         self.hidden = hidden
-        self.cell = CfCCell(input_size=2, hidden_size=hidden, backbone_units=backbone_units)
-        self.head = nn.Linear(hidden, 2)
+        self.bidirectional = bidirectional
+        self.cell = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
+        if bidirectional:
+            self.cell_bw = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
+        self.head = nn.Linear(hidden * (2 if bidirectional else 1), 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        center = self.window_len // 2
         h = x.new_zeros(x.shape[0], self.hidden)
-        for t in range(x.shape[1]):
+        for t in range(center + 1):  # forward sweep up to and including the center
             h = self.cell(x[:, t, :], h)
-        return x[:, self.window_len // 2, :] + self.head(h)
+        if self.bidirectional:
+            hb = x.new_zeros(x.shape[0], self.hidden)
+            for t in range(x.shape[1] - 1, center - 1, -1):  # backward sweep to center
+                hb = self.cell_bw(x[:, t, :], hb)
+            h = torch.cat([h, hb], dim=-1)
+        return x[:, center, :2] + self.head(h)
 
     def step(self, x_t: torch.Tensor, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Streaming mode: one cell update per incoming symbol, O(1) per symbol.
 
         The residual connection uses the current input, so in streaming mode the
-        prediction corrects the symbol that just arrived.
+        prediction corrects the symbol that just arrived. Streaming uses the
+        forward cell only; a bidirectional model's head expects both states, so
+        streaming applies to unidirectional models.
         """
+        if self.bidirectional:
+            raise RuntimeError("streaming requires bidirectional=False")
         h = self.cell(x_t, h)
-        return x_t + self.head(h), h
+        return x_t[:, :2] + self.head(h), h
 
     def macs_per_symbol(self) -> int:
+        center = self.window_len // 2
+        steps = center + 1  # forward sweep
+        if self.bidirectional:
+            steps += self.window_len - center  # backward sweep down to the center
         return (
-            self.window_len * self.cell.macs_per_step()
+            steps * self.cell.macs_per_step()
             + self.head.in_features * self.head.out_features
         )
 

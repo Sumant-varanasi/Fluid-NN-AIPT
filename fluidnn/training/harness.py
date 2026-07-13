@@ -23,6 +23,7 @@ def train_equalizer(
     epochs: int = 30,
     batch_size: int = 512,
     lr: float = 1e-3,
+    lr_min: float | None = None,  # if set, cosine-anneal lr -> lr_min over the run
     seed: int = 0,
     verbose: bool = True,
 ) -> dict:
@@ -35,6 +36,11 @@ def train_equalizer(
     xv = torch.from_numpy(x_val)
     yv = torch.from_numpy(y_val)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs, eta_min=lr_min)
+        if lr_min is not None
+        else None
+    )
     loss_fn = nn.MSELoss()
 
     history = {"train_mse": [], "val_mse": []}
@@ -51,6 +57,8 @@ def train_equalizer(
             opt.step()
             running += loss.item() * len(xb)
             count += len(xb)
+        if scheduler is not None:
+            scheduler.step()
         model.eval()
         with torch.no_grad():
             val_mse = loss_fn(_predict(model, xv), yv).item()

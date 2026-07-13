@@ -26,7 +26,7 @@ from fluidnn.models import BiLSTMEqualizer, CfCEqualizer, MLPEqualizer
 from fluidnn.training.harness import evaluate_equalizer, train_equalizer
 
 HALF_WINDOW = 20  # -> 41-symbol windows
-EPOCHS = 40
+EPOCHS = 50
 RESULTS_DIR = pathlib.Path(__file__).resolve().parents[1] / "results"
 FIGURES_DIR = pathlib.Path(__file__).resolve().parents[1] / "docs" / "figures"
 
@@ -49,7 +49,7 @@ def link_config(n_symbols: int, seed: int) -> LinkConfig:
 def build_dataset(n_symbols: int, seed: int) -> dict:
     r = simulate_link(link_config(n_symbols, seed))
     x_c, y_c = make_windows(r["rx_symbols"], r["tx_symbols"], HALF_WINDOW)
-    r["x"] = to_real_features(x_c)  # (n, T, 2)
+    r["x"] = to_real_features(x_c, power_feature=True)  # (n, T, 3): I, Q, |x|^2
     r["y"] = np.stack([y_c.real, y_c.imag], axis=-1).astype(np.float32)
     return r
 
@@ -78,14 +78,15 @@ def main() -> None:
 
     window_len = 2 * HALF_WINDOW + 1
     models = {
-        "MLP": MLPEqualizer(window_len, hidden=(256, 128)),
-        "BiLSTM": BiLSTMEqualizer(window_len, hidden=48),
-        "CfC": CfCEqualizer(window_len, hidden=32),
+        "MLP": MLPEqualizer(window_len, hidden=(256, 128), in_channels=3),
+        "BiLSTM": BiLSTMEqualizer(window_len, hidden=48, in_channels=3),
+        "CfC": CfCEqualizer(window_len, hidden=32, backbone_units=64, in_channels=3),
     }
     for name, model in models.items():
         print(f"\nTraining {name} ...")
         history = train_equalizer(
-            model, x_tr, y_tr, x_val, y_val, epochs=EPOCHS, seed=0, verbose=True
+            model, x_tr, y_tr, x_val, y_val, epochs=EPOCHS, batch_size=1024,
+            lr=3e-3, lr_min=1e-4, seed=0, verbose=True
         )
         report = evaluate_equalizer(
             model, test["x"], test["tx_symbols"], test["tx_bits"], test["qam"]
@@ -97,8 +98,6 @@ def main() -> None:
             f"  params={report['params']}  MACs/sym={report['macs_per_symbol']}"
         )
 
-    results["CfC"]["macs_per_symbol_streaming"] = models["CfC"].macs_per_symbol_streaming()
-
     print("\n=== Summary (test set) ===")
     print(f"{'model':10s} {'BER':>10s} {'Q [dB]':>8s} {'EVM %':>7s} {'params':>8s} {'MACs/sym':>9s}")
     for name, r in results.items():
@@ -106,11 +105,6 @@ def main() -> None:
             f"{name:10s} {r['ber']:10.2e} {r['q_db']:8.2f} {r['evm_percent']:7.1f}"
             f" {r['params']:8d} {r['macs_per_symbol']:9d}"
         )
-    print(
-        f"\nCfC streaming mode (state carried, one step per symbol): "
-        f"{results['CfC']['macs_per_symbol_streaming']} MACs/sym"
-    )
-
     payload = {"config": link_config(0, 0).to_dict(), "half_window": HALF_WINDOW, "results": results}
     (RESULTS_DIR / "spike_results.json").write_text(json.dumps(payload, indent=2))
 
