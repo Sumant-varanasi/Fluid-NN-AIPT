@@ -1,6 +1,0 @@
-numpy>=1.26
-scipy>=1.11
-
-[ml]
-torch>=2.2
-matplotlib>=3.8
