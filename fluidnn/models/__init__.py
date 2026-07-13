@@ -9,4 +9,4 @@ Every model reports weight MACs per recovered symbol via ``macs_per_symbol()``.
 
 from fluidnn.models.mlp import MLPEqualizer
 from fluidnn.models.lstm import BiLSTMEqualizer
-from fluidnn.models.cfc import CfCEqualizer
+from fluidnn.models.cfc import CfCEqualizer, StreamingCfCEqualizer

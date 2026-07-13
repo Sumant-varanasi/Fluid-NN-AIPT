@@ -24,6 +24,7 @@ def train_equalizer(
     batch_size: int = 512,
     lr: float = 1e-3,
     lr_min: float | None = None,  # if set, cosine-anneal lr -> lr_min over the run
+    weight_decay: float = 0.0,
     seed: int = 0,
     verbose: bool = True,
 ) -> dict:
@@ -35,7 +36,7 @@ def train_equalizer(
     )
     xv = torch.from_numpy(x_val)
     yv = torch.from_numpy(y_val)
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = (
         torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs, eta_min=lr_min)
         if lr_min is not None

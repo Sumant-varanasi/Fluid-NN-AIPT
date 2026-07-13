@@ -130,3 +130,47 @@ class CfCEqualizer(nn.Module):
 
     def macs_per_symbol_streaming(self) -> int:
         return self.cell.macs_per_step() + self.head.in_features * self.head.out_features
+
+
+class StreamingCfCEqualizer(nn.Module):
+    """Causal streaming CfC: one cell update per received symbol, state carried.
+
+    The model consumes the symbol stream in order and, at each step, outputs the
+    equalized symbol received ``delay`` steps earlier -- its decision latency,
+    which gives it ``delay`` symbols of lookahead context relative to the symbol
+    it corrects. There is no window and no re-computation: the per-symbol cost
+    is exactly one cell update plus the head (see ``macs_per_symbol()``).
+
+    Input follows ``make_stream_chunks``: chunks of ``warmup + L`` steps, the
+    first ``warmup`` steps only prime the state and produce no output.
+    """
+
+    def __init__(
+        self,
+        hidden: int = 32,
+        backbone_units: int = 0,
+        in_channels: int = 2,
+        delay: int = 8,
+        warmup: int = 32,
+    ):
+        super().__init__()
+        if delay > warmup:
+            raise ValueError("delay must be <= warmup so every output has an input")
+        self.hidden = hidden
+        self.delay = delay
+        self.warmup = warmup
+        self.cell = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
+        self.head = nn.Linear(hidden, 2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """(B, warmup+L, C) -> (B, L, 2); output j equalizes input step warmup+j-delay."""
+        h = x.new_zeros(x.shape[0], self.hidden)
+        outs = []
+        for s in range(x.shape[1]):
+            h = self.cell(x[:, s, :], h)
+            if s >= self.warmup:
+                outs.append(x[:, s - self.delay, :2] + self.head(h))
+        return torch.stack(outs, dim=1)
+
+    def macs_per_symbol(self) -> int:
+        return self.cell.macs_per_step() + self.head.in_features * self.head.out_features

@@ -19,6 +19,33 @@ def make_windows(
     return rx_symbols[idx], tx_symbols.copy()
 
 
+def make_stream_chunks(
+    rx_symbols: np.ndarray,
+    tx_symbols: np.ndarray,
+    chunk_len: int = 256,
+    warmup: int = 32,
+    delay: int = 8,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Chunk a symbol sequence for streaming (sequence-to-sequence) training.
+
+    Chunk k covers received symbols [k*chunk_len - warmup, k*chunk_len + chunk_len)
+    (circular). A streaming model consumes the chunk step by step; after the
+    ``warmup`` steps its state is valid, and at step s it predicts the symbol
+    received ``delay`` steps earlier (its decision latency). Targets are aligned
+    accordingly: y[k, j] = tx at position k*chunk_len + j - delay.
+
+    Returns (X complex (n_chunks, warmup+chunk_len), Y complex (n_chunks, chunk_len)).
+    Concatenating all chunks' predictions covers every symbol exactly once.
+    """
+    n = len(rx_symbols)
+    if n % chunk_len != 0:
+        raise ValueError("chunk_len must divide the sequence length")
+    starts = np.arange(0, n, chunk_len)
+    x_idx = (starts[:, None] + np.arange(-warmup, chunk_len)[None, :]) % n
+    y_idx = (starts[:, None] + np.arange(chunk_len)[None, :] - delay) % n
+    return rx_symbols[x_idx], tx_symbols[y_idx]
+
+
 def to_real_features(x_complex: np.ndarray, power_feature: bool = False) -> np.ndarray:
     """(n, T) complex -> (n, T, C) float32.
 
