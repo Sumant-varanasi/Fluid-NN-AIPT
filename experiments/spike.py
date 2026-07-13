@@ -1,8 +1,9 @@
 """Spike experiment: first end-to-end accuracy-vs-complexity comparison.
 
-Single-pol 16QAM, 32 GBd, 20 x 80 km SSMF at 2 dBm launch power -- a strongly
-nonlinear operating point where CDC-only detection sits at BER ~ 2e-2. Every
-equalizer sees identical data, optimizer budget, and metrics.
+Single-pol 16QAM, 32 GBd, 12 x 80 km SSMF at 3 dBm launch power, receiver chain
+CDC + genie CPE. A strongly nonlinear operating point; residual distortion is ~97%
+deterministic (see docs/notes/spike_v1_diagnosis.md). Every equalizer sees
+identical data, optimizer budget, and metrics.
 
 Run from the repo root:  python experiments/spike.py
 Outputs: results/spike_results.json, docs/figures/spike_*.png
@@ -24,13 +25,13 @@ from fluidnn.metrics import equalizer_report
 from fluidnn.models import BiLSTMEqualizer, CfCEqualizer, MLPEqualizer
 from fluidnn.training.harness import evaluate_equalizer, train_equalizer
 
-HALF_WINDOW = 10  # -> 21-symbol windows
-EPOCHS = 30
+HALF_WINDOW = 20  # -> 41-symbol windows
+EPOCHS = 40
 RESULTS_DIR = pathlib.Path(__file__).resolve().parents[1] / "results"
 FIGURES_DIR = pathlib.Path(__file__).resolve().parents[1] / "docs" / "figures"
 
 # Validated categorical palette (dataviz skill, light mode) + neutral baseline.
-COLORS = {"CDC only": "#666666", "MLP": "#2a78d6", "BiLSTM": "#1baf7a", "CfC": "#eda100"}
+COLORS = {"CDC+CPE": "#666666", "MLP": "#2a78d6", "BiLSTM": "#1baf7a", "CfC": "#eda100"}
 
 
 def link_config(n_symbols: int, seed: int) -> LinkConfig:
@@ -38,8 +39,8 @@ def link_config(n_symbols: int, seed: int) -> LinkConfig:
         mod_order=16,
         n_symbols=n_symbols,
         symbol_rate=32e9,
-        launch_power_dbm=2.0,
-        n_spans=20,
+        launch_power_dbm=3.0,
+        n_spans=12,
         steps_per_span=40,
         seed=seed,
     )
@@ -57,8 +58,8 @@ def main() -> None:
     RESULTS_DIR.mkdir(exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Simulating training link (2^16 symbols) ...")
-    train = build_dataset(2**16, seed=11)
+    print("Simulating training link (2^17 symbols) ...")
+    train = build_dataset(2**17, seed=11)
     print("Simulating test link (2^15 symbols, independent data + noise) ...")
     test = build_dataset(2**15, seed=22)
 
@@ -72,14 +73,14 @@ def main() -> None:
         test["rx_symbols"], test["tx_symbols"], test["tx_bits"], test["qam"]
     )
     cdc_report.update(params=0, macs_per_symbol=0)
-    results["CDC only"] = cdc_report
-    print(f"\nCDC only: BER={cdc_report['ber']:.2e}  Q={cdc_report['q_db']:.2f} dB")
+    results["CDC+CPE"] = cdc_report
+    print(f"\nCDC+CPE: BER={cdc_report['ber']:.2e}  Q={cdc_report['q_db']:.2f} dB")
 
     window_len = 2 * HALF_WINDOW + 1
     models = {
-        "MLP": MLPEqualizer(window_len, hidden=(128, 64)),
-        "BiLSTM": BiLSTMEqualizer(window_len, hidden=32),
-        "CfC": CfCEqualizer(window_len, hidden=24),
+        "MLP": MLPEqualizer(window_len, hidden=(256, 128)),
+        "BiLSTM": BiLSTMEqualizer(window_len, hidden=48),
+        "CfC": CfCEqualizer(window_len, hidden=32),
     }
     for name, model in models.items():
         print(f"\nTraining {name} ...")
@@ -131,7 +132,7 @@ def make_figures(results: dict, test: dict, models: dict) -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(9, 4.4), sharex=True, sharey=True)
     for ax, data, title in (
-        (axes[0], test["rx_symbols"][:20000], "CDC only (input to equalizer)"),
+        (axes[0], test["rx_symbols"][:20000], "CDC + CPE (input to equalizer)"),
         (axes[1], eq, "CfC equalized"),
     ):
         ax.scatter(data.real, data.imag, s=1, alpha=0.12, color="#2a78d6", linewidths=0)
@@ -145,7 +146,7 @@ def make_figures(results: dict, test: dict, models: dict) -> None:
         ax.grid(True, linewidth=0.4, alpha=0.35)
         ax.spines[["top", "right"]].set_visible(False)
     axes[0].set_ylabel("Quadrature")
-    fig.suptitle("16QAM after 20x80 km at 2 dBm", fontsize=12)
+    fig.suptitle("16QAM after 12x80 km at 3 dBm", fontsize=12)
     fig.tight_layout()
     fig.savefig(FIGURES_DIR / "spike_constellations.png", dpi=160)
     plt.close(fig)

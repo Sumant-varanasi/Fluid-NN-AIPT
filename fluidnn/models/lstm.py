@@ -21,7 +21,8 @@ class BiLSTMEqualizer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out, _ = self.lstm(x)  # (B, T, 2H)
-        return self.head(out[:, self.window_len // 2, :])
+        center = self.window_len // 2
+        return x[:, center, :] + self.head(out[:, center, :])
 
     def macs_per_symbol(self) -> int:
         per_step_per_dir = 4 * self.hidden * (2 + self.hidden)  # W_ih + W_hh for 4 gates

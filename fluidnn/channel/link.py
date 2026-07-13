@@ -15,7 +15,7 @@ import numpy as np
 
 from fluidnn.channel.modulation import QAM
 from fluidnn.channel.pulse import filt_circular, rrc_taps, upsample
-from fluidnn.channel.receiver import cdc, ls_correct, matched_filter_downsample
+from fluidnn.channel.receiver import cdc, cpe_sliding, ls_correct, matched_filter_downsample
 from fluidnn.channel.ssfm import FiberParams, propagate_link
 
 
@@ -32,6 +32,7 @@ class LinkConfig:
     steps_per_span: int = 50
     nf_db: float = 4.5
     ase: bool = True
+    cpe_window: int | None = 32  # genie sliding-window CPE; None disables
     fiber: FiberParams = field(default_factory=FiberParams)
     seed: int = 0
 
@@ -69,6 +70,8 @@ def simulate_link(cfg: LinkConfig) -> dict:
     rx_waveform = cdc(rx_waveform, fs, cfg.fiber.beta2_s2_m, total_length_m)
     rx_symbols = matched_filter_downsample(rx_waveform, taps, cfg.sps)
     rx_symbols = ls_correct(rx_symbols, tx_symbols)
+    if cfg.cpe_window is not None:
+        rx_symbols = cpe_sliding(rx_symbols, tx_symbols, cfg.cpe_window)
 
     return {
         "tx_bits": tx_bits,

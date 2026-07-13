@@ -1,4 +1,10 @@
-"""Feed-forward baseline: the window is flattened and mapped to the center symbol."""
+"""Feed-forward baseline: the window is flattened and mapped to the center symbol.
+
+All equalizers here output a *residual*: the network predicts the correction to
+the received center symbol rather than the clean symbol from scratch. The
+identity part of the mapping (received ~ transmitted) is free, so learning only
+has to model the distortion.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +25,7 @@ class MLPEqualizer(nn.Module):
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x.flatten(1))
+        return x[:, self.window_len // 2, :] + self.net(x.flatten(1))
 
     def macs_per_symbol(self) -> int:
         return sum(

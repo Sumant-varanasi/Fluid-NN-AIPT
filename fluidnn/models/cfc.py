@@ -83,12 +83,16 @@ class CfCEqualizer(nn.Module):
         h = x.new_zeros(x.shape[0], self.hidden)
         for t in range(x.shape[1]):
             h = self.cell(x[:, t, :], h)
-        return self.head(h)
+        return x[:, self.window_len // 2, :] + self.head(h)
 
     def step(self, x_t: torch.Tensor, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Streaming mode: one cell update per incoming symbol, O(1) per symbol."""
+        """Streaming mode: one cell update per incoming symbol, O(1) per symbol.
+
+        The residual connection uses the current input, so in streaming mode the
+        prediction corrects the symbol that just arrived.
+        """
         h = self.cell(x_t, h)
-        return self.head(h), h
+        return x_t + self.head(h), h
 
     def macs_per_symbol(self) -> int:
         return (

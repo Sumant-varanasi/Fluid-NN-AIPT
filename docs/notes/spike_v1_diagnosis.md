@@ -2,7 +2,7 @@
 
 **Setup.** Single-pol 16QAM, 32 GBd, 20 x 80 km SSMF @ 2 dBm, half-window 10
 (21-symbol input), 59k training symbols, 30 epochs. Full config in
-`experiments/spike.py` at commit `6fa8788` and `results/spike_results.json`.
+`experiments/spike.py` at commit `37a2aab` and `results/spike_results.json`.
 
 ## Result: no equalizer beat CDC-only
 
