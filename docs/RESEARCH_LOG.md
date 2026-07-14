@@ -180,3 +180,23 @@ scores Q 11.29 -- a full dB *better* than the CfC trained directly at +1 dBm
 (10.30). The +1 dBm matched training run was pathological, not the regime
 itself. CfC training stability across operating points is now the top open
 thread, together with tail-aware losses.
+
+## Streaming equalizers -- open problem, and the CfC is exonerated
+
+The streaming benchmark (state carried across the stream, delay-8 lookahead,
+O(1)/symbol) failed identically for CfC at h=16/32/64: all converge to the
+identity (Q 7.51 vs baseline 7.52). Probes since:
+
+1. **Tapped state readout** (head reads [h_t, h_{t-delay}] so the target symbol
+   is one step from a readout, mirroring the fix that unstuck the window CfC):
+   no effect at a 560-optimizer-step budget.
+2. **Control: a causal streaming LSTM under the identical protocol also
+   flatlines** (Q 7.58). The failure is the streaming training protocol, not
+   the CfC cell -- important negative result for the comparison's fairness.
+3. Suspect: optimizer-step starvation. Streaming chunks give ~10-60x fewer
+   optimizer steps per epoch than window training, and every recurrent model
+   in this project needed >1000 steps before leaving the identity.
+   Long-budget probe running.
+
+Until streaming trains, the honest complexity story compares window models
+only; streaming MAC numbers are stated as potential, never with a Q attached.

@@ -143,6 +143,15 @@ class StreamingCfCEqualizer(nn.Module):
 
     Input follows ``make_stream_chunks``: chunks of ``warmup + L`` steps, the
     first ``warmup`` steps only prime the state and produce no output.
+
+    With ``tapped=True`` (default) the head reads [h_t, h_{t-delay}]: the state
+    captured the moment the target symbol arrived (a one-step path from that
+    input, which is what makes training escape the identity -- a head reading
+    only h_t leaves the target's information ``delay`` gated updates old, the
+    exact failure mode measured for final-state window readouts) plus the
+    current state carrying ``delay`` symbols of lookahead. In hardware this is
+    a FIFO of ``delay`` states; the per-symbol cost stays one cell update +
+    head.
     """
 
     def __init__(
@@ -152,6 +161,7 @@ class StreamingCfCEqualizer(nn.Module):
         in_channels: int = 2,
         delay: int = 8,
         warmup: int = 32,
+        tapped: bool = True,
     ):
         super().__init__()
         if delay > warmup:
@@ -159,17 +169,21 @@ class StreamingCfCEqualizer(nn.Module):
         self.hidden = hidden
         self.delay = delay
         self.warmup = warmup
+        self.tapped = tapped
         self.cell = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
-        self.head = nn.Linear(hidden, 2)
+        self.head = nn.Linear(hidden * (2 if tapped else 1), 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """(B, warmup+L, C) -> (B, L, 2); output j equalizes input step warmup+j-delay."""
         h = x.new_zeros(x.shape[0], self.hidden)
+        history: list[torch.Tensor] = []
         outs = []
         for s in range(x.shape[1]):
             h = self.cell(x[:, s, :], h)
+            history.append(h)
             if s >= self.warmup:
-                outs.append(x[:, s - self.delay, :2] + self.head(h))
+                z = torch.cat([h, history[s - self.delay]], dim=-1) if self.tapped else h
+                outs.append(x[:, s - self.delay, :2] + self.head(z))
         return torch.stack(outs, dim=1)
 
     def macs_per_symbol(self) -> int:
