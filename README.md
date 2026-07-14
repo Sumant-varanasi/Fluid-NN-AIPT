@@ -7,7 +7,25 @@ their per-symbol compute cost keeps them out of real-time DSP. This project test
 whether **closed-form continuous-time (CfC) liquid networks** reach the same equalization
 quality at a fraction of the multiply-accumulate budget — and whether their adaptive,
 input-dependent time constants track time-varying channels better than frozen discrete
-models. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full research plan.
+models. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full research plan and
+[docs/RESEARCH_LOG.md](docs/RESEARCH_LOG.md) for the experiment-by-experiment record,
+including negative results and their measured diagnoses.
+
+## Current results (simulation testbed)
+
+Single-polarization 16QAM, 32 GBd, 12 x 80 km SSMF, receiver CDC + ideal CPE.
+Learned equalizers deliver up to **+2.2 dB Q** over the linear baseline across the
+nonlinear regime; the constellation below shows the CfC cleaning +3 dBm distortion.
+
+![Q-factor vs launch power](docs/figures/power_sweep_q.png)
+
+![Constellations](docs/figures/spike_constellations.png)
+
+Honest state of the comparison (details and open items in the research log):
+a well-regularized window **MLP currently leads on accuracy**; the **BiLSTM** is close
+behind and adapts to drift with the fewest pilots; the **CfC** delivers solid gains at
+high powers, wins on parameters, and its streaming mode — one cell update per symbol —
+is the standing candidate for real-time deployment, still under active development.
 
 ## Repository layout
 
