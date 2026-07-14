@@ -11,7 +11,7 @@ models. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full research plan and
 [docs/RESEARCH_LOG.md](docs/RESEARCH_LOG.md) for the experiment-by-experiment record,
 including negative results and their measured diagnoses.
 
-## Current results (simulation testbed)
+## Current results found (simulation testbed) 
 
 Single-polarization 16QAM, 32 GBd, 12 x 80 km SSMF, receiver CDC + ideal CPE.
 Learned equalizers deliver up to **+2.2 dB Q** over the linear baseline across the
