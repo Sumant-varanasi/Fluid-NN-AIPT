@@ -205,3 +205,33 @@ identity (Q 7.51 vs baseline 7.52). Probes since:
 Until streaming numbers land, the honest complexity story compares window
 models only; streaming MAC numbers are stated as potential, never with a Q
 attached.
+
+**Results (200 epochs, full data; figure docs/figures/streaming_frontier.png):**
+
+| model | BER | Q [dB] | MACs/sym | delay |
+|-------|-----|--------|----------|-------|
+| CDC+CPE | 8.72e-03 | 7.52 | 0 | - |
+| StreamLSTM-h32 | 4.10e-03 | 8.44 | 4,608 | 8 sym |
+| StreamCfC-h32 | 4.97e-03 | 8.22 | 10,560 | 8 sym |
+| (window CfC)   | 4.33e-03 | 8.38 | 438k | offline |
+| (window MLP)   | 1.54e-03 | 9.42 | 54k | offline |
+
+- **The O(1)-per-symbol regime works**: a streaming equalizer with 8 symbols of
+  decision latency recovers most of the window CfC's gain at **~95x fewer MACs**
+  (StreamLSTM 4.6k vs window CfC 438k, equal Q within 0.06 dB).
+- Within streaming, the discrete LSTM cell currently edges the CfC cell
+  (Q 8.44 vs 8.22) at 2.3x fewer MACs -- the CfC's backbone is its cost. A
+  leaner CfC (no backbone) and longer budgets remain unprobed in streaming.
+- Both streaming losses were still falling at epoch 200.
+
+## Where the thesis stands after the first full benchmark cycle
+
+Supported: learned equalizers give up to +2.2 dB Q across the nonlinear regime;
+streaming models make real-time complexity plausible (~5-10k MACs/symbol at
++0.7-0.9 dB gain). Not yet supported: a regime where the CfC *dominates* --
+the window MLP wins offline accuracy, the streaming LSTM edges the streaming
+CfC, and frozen-drift robustness favours the BiLSTM. Open threads, in order:
+CfC training stability across powers, tail-aware losses (the MSE/BER
+divergence), leaner streaming CfC, dual-polarization + PMD drift (a channel
+that *actually* varies in time, where the liquid-network hypothesis gets its
+fair test -- static drift here may simply not be the setting it pays off in).
