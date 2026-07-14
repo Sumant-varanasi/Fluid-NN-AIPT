@@ -120,3 +120,7 @@ Findings:
    depth tuning still to do.
 3. MSE ranks models differently from BER throughout -- any model selection or
    early stopping should eventually switch to a BER-aligned criterion.
+4. BiLSTM addendum (80-epoch probe): encoding-insensitive -- IQ-only Q 8.95 vs
+   IQ+|x|^2 Q 8.99, a tie within run-to-run noise. Sweep keeps |x|^2 for it.
+   Also: 80 epochs at lr 3e-3 does not beat the 50-epoch v3 number (9.02) --
+   the BiLSTM's remaining headroom is smaller than its epoch-50 slope suggested.
