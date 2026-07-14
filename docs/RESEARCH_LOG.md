@@ -146,3 +146,37 @@ Per-model best recipes, trained and tested independently at each power
   while holding +0.9/+1.2 dB at +3/+5 dBm. Its current recipe was tuned at
   +3 dBm; the milder-distortion regime likely needs its own (or the |x|^2
   feature hurts it there just as it does the MLP everywhere). Not yet probed.
+
+## Adaptivity study -- honest verdict: no LNN advantage demonstrated (yet)
+
+Models trained at +3 dBm / 12 spans, evaluated frozen under drift
+(figure: docs/figures/adaptivity_drift.png; full numbers results/adaptivity.json).
+
+**Frozen power drift** (gap = matched retrain minus frozen, at +5 dBm):
+MLP 0.34 dB, BiLSTM 0.18 dB, CfC 0.60 dB. All models degrade gracefully and
+keep beating the baseline everywhere, but the CfC's frozen gap is the largest,
+not the smallest -- the continuous-time adaptivity hypothesis is **not**
+supported by frozen-transfer behaviour at this operating point.
+
+**Distance drift** (10-14 spans, frozen): all models hold their ranking and
+their gains; nothing dramatic. Equalizers trained at 12 spans stay useful
+over +/-160 km without retraining.
+
+**Pilot-based adaptation at +5 dBm** (fine-tune 15 epochs, lr 3e-4):
+| pilots | MLP | BiLSTM | CfC |
+|--------|-----|--------|-----|
+| frozen | 5.82 | 5.62 | 4.92 |
+| 1k     | 5.73 | 5.63 | 4.93 |
+| 4k     | 5.70 | 5.68 | 4.98 |
+| 16k    | 5.91 | 5.80 | 5.10 |
+| matched| 6.16 | 5.80 | 5.52 |
+
+BiLSTM fully recovers its matched performance with 16k pilots; CfC recovers
+only 0.18 of its 0.60 dB gap; the MLP *loses* Q at small pilot counts
+(overfits the pilots -- consistent with its known regularization sensitivity).
+
+**Surprise worth chasing:** the +3 dBm-trained CfC evaluated frozen at +1 dBm
+scores Q 11.29 -- a full dB *better* than the CfC trained directly at +1 dBm
+(10.30). The +1 dBm matched training run was pathological, not the regime
+itself. CfC training stability across operating points is now the top open
+thread, together with tail-aware losses.
