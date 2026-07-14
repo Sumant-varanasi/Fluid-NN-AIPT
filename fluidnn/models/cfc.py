@@ -164,6 +164,7 @@ class StreamingCfCEqualizer(nn.Module):
         delay: int = 8,
         warmup: int = 32,
         tapped: bool = True,
+        out_channels: int = 2,
     ):
         super().__init__()
         if delay > warmup:
@@ -172,8 +173,9 @@ class StreamingCfCEqualizer(nn.Module):
         self.delay = delay
         self.warmup = warmup
         self.tapped = tapped
+        self.out_channels = out_channels
         self.cell = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
-        self.head = nn.Linear(hidden * (2 if tapped else 1), 2)
+        self.head = nn.Linear(hidden * (2 if tapped else 1), out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """(B, warmup+L, C) -> (B, L, 2); output j equalizes input step warmup+j-delay."""
@@ -185,7 +187,7 @@ class StreamingCfCEqualizer(nn.Module):
             history.append(h)
             if s >= self.warmup:
                 z = torch.cat([h, history[s - self.delay]], dim=-1) if self.tapped else h
-                outs.append(x[:, s - self.delay, :2] + self.head(z))
+                outs.append(x[:, s - self.delay, : self.out_channels] + self.head(z))
         return torch.stack(outs, dim=1)
 
     def macs_per_symbol(self) -> int:

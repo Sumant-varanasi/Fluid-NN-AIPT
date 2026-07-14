@@ -66,6 +66,30 @@ def make_dp_windows(
     return x, y
 
 
+def make_dp_stream_chunks(
+    rx_symbols: np.ndarray,
+    tx_symbols: np.ndarray,
+    chunk_len: int = 64,
+    warmup: int = 32,
+    delay: int = 8,
+    power_feature: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Dual-polarization streaming chunks (see ``make_stream_chunks`` for the
+    alignment contract). rx/tx: (2, N) complex.
+
+    Returns X float32 (n_chunks, warmup+chunk_len, C) with channels
+    [Ix, Qx, Iy, Qy] (+ [Px, Py]), Y float32 (n_chunks, chunk_len, 4).
+    """
+    xa, ya = make_stream_chunks(rx_symbols[0], tx_symbols[0], chunk_len, warmup, delay)
+    xb, yb = make_stream_chunks(rx_symbols[1], tx_symbols[1], chunk_len, warmup, delay)
+    feats = [xa.real, xa.imag, xb.real, xb.imag]
+    if power_feature:
+        feats += [np.abs(xa) ** 2, np.abs(xb) ** 2]
+    x = np.stack(feats, axis=-1).astype(np.float32)
+    y = np.stack([ya.real, ya.imag, yb.real, yb.imag], axis=-1).astype(np.float32)
+    return x, y
+
+
 def to_real_features(x_complex: np.ndarray, power_feature: bool = False) -> np.ndarray:
     """(n, T) complex -> (n, T, C) float32.
 

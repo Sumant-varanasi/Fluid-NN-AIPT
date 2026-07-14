@@ -42,21 +42,29 @@ class StreamingLSTMEqualizer(nn.Module):
     [h_t, h_{t-delay}], residual on the delayed input. O(1) per symbol.
     """
 
-    def __init__(self, hidden: int = 32, in_channels: int = 2, delay: int = 8, warmup: int = 32):
+    def __init__(
+        self,
+        hidden: int = 32,
+        in_channels: int = 2,
+        delay: int = 8,
+        warmup: int = 32,
+        out_channels: int = 2,
+    ):
         super().__init__()
         if delay > warmup:
             raise ValueError("delay must be <= warmup so every output has an input")
         self.hidden = hidden
         self.delay = delay
         self.warmup = warmup
+        self.out_channels = out_channels
         self.lstm = nn.LSTM(in_channels, hidden, batch_first=True)
-        self.head = nn.Linear(2 * hidden, 2)
+        self.head = nn.Linear(2 * hidden, out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out, _ = self.lstm(x)  # (B, T, H); out[:, s] is the state after step s
         idx = torch.arange(self.warmup, x.shape[1], device=x.device)
         z = torch.cat([out[:, idx], out[:, idx - self.delay]], dim=-1)
-        return x[:, idx - self.delay, :2] + self.head(z)
+        return x[:, idx - self.delay, : self.out_channels] + self.head(z)
 
     def macs_per_symbol(self) -> int:
         step = 4 * self.hidden * (self.lstm.input_size + self.hidden)
