@@ -12,19 +12,20 @@ from torch import nn
 
 
 class BiLSTMEqualizer(nn.Module):
-    def __init__(self, window_len: int, hidden: int = 32, in_channels: int = 2):
+    def __init__(self, window_len: int, hidden: int = 32, in_channels: int = 2, out_channels: int = 2):
         super().__init__()
         self.window_len = window_len
         self.hidden = hidden
+        self.out_channels = out_channels
         self.lstm = nn.LSTM(
             input_size=in_channels, hidden_size=hidden, batch_first=True, bidirectional=True
         )
-        self.head = nn.Linear(2 * hidden, 2)
+        self.head = nn.Linear(2 * hidden, out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out, _ = self.lstm(x)  # (B, T, 2H)
         center = self.window_len // 2
-        return x[:, center, :2] + self.head(out[:, center, :])
+        return x[:, center, : self.out_channels] + self.head(out[:, center, :])
 
     def macs_per_symbol(self) -> int:
         in_size = self.lstm.input_size

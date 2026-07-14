@@ -83,15 +83,17 @@ class CfCEqualizer(nn.Module):
         backbone_units: int = 0,
         bidirectional: bool = True,
         in_channels: int = 2,
+        out_channels: int = 2,
     ):
         super().__init__()
         self.window_len = window_len
         self.hidden = hidden
         self.bidirectional = bidirectional
+        self.out_channels = out_channels
         self.cell = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
         if bidirectional:
             self.cell_bw = CfCCell(in_channels, hidden_size=hidden, backbone_units=backbone_units)
-        self.head = nn.Linear(hidden * (2 if bidirectional else 1), 2)
+        self.head = nn.Linear(hidden * (2 if bidirectional else 1), out_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         center = self.window_len // 2
@@ -103,7 +105,7 @@ class CfCEqualizer(nn.Module):
             for t in range(x.shape[1] - 1, center - 1, -1):  # backward sweep to center
                 hb = self.cell_bw(x[:, t, :], hb)
             h = torch.cat([h, hb], dim=-1)
-        return x[:, center, :2] + self.head(h)
+        return x[:, center, : self.out_channels] + self.head(h)
 
     def step(self, x_t: torch.Tensor, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Streaming mode: one cell update per incoming symbol, O(1) per symbol.

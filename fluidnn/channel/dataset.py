@@ -46,6 +46,26 @@ def make_stream_chunks(
     return rx_symbols[x_idx], tx_symbols[y_idx]
 
 
+def make_dp_windows(
+    rx_symbols: np.ndarray, tx_symbols: np.ndarray, half_window: int, power_feature: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
+    """Joint dual-polarization windows.
+
+    rx/tx: (2, N) complex. Returns (X, Y): X float32 (n, 2W+1, C) with channels
+    [Ix, Qx, Iy, Qy] (+ [Px, Py] if power_feature), Y float32 (n, 4). The first
+    four feature channels always match the target layout so residual models can
+    add the center symbol directly.
+    """
+    xw, y0 = make_windows(rx_symbols[0], tx_symbols[0], half_window)
+    yw, y1 = make_windows(rx_symbols[1], tx_symbols[1], half_window)
+    feats = [xw.real, xw.imag, yw.real, yw.imag]
+    if power_feature:
+        feats += [np.abs(xw) ** 2, np.abs(yw) ** 2]
+    x = np.stack(feats, axis=-1).astype(np.float32)
+    y = np.stack([y0.real, y0.imag, y1.real, y1.imag], axis=-1).astype(np.float32)
+    return x, y
+
+
 def to_real_features(x_complex: np.ndarray, power_feature: bool = False) -> np.ndarray:
     """(n, T) complex -> (n, T, C) float32.
 
