@@ -124,3 +124,25 @@ Findings:
    IQ+|x|^2 Q 8.99, a tie within run-to-run noise. Sweep keeps |x|^2 for it.
    Also: 80 epochs at lr 3e-3 does not beat the 50-epoch v3 number (9.02) --
    the BiLSTM's remaining headroom is smaller than its epoch-50 slope suggested.
+
+## Launch-power sweep -- gains across the whole nonlinear regime
+
+Per-model best recipes, trained and tested independently at each power
+(figure: docs/figures/power_sweep_q.png; checkpoints saved per condition).
+
+| Q [dB] | -1 dBm | +1 dBm | +3 dBm | +5 dBm |
+|--------|--------|--------|--------|--------|
+| CDC+CPE | 12.40 | 10.24 | 7.52 | 4.29 |
+| MLP     | 12.72 | 12.40 | 9.42 | 6.16 |
+| BiLSTM  | 12.72 | 11.46 | 9.02 | 5.80 |
+| CfC     | 12.72 | 10.30 | 8.38 | 5.52 |
+
+- Every learned equalizer improves on the baseline at every power; the tuned
+  window MLP leads throughout, peaking at **+2.2 dB** at +1 dBm.
+- At -1 dBm the link is ASE-limited and everyone saturates at the same Q
+  (0-1 bit errors in 131k bits -- differences there are not statistically
+  meaningful).
+- **Open item:** the CfC's gain nearly vanishes at +1 dBm (10.30 vs 10.24)
+  while holding +0.9/+1.2 dB at +3/+5 dBm. Its current recipe was tuned at
+  +3 dBm; the milder-distortion regime likely needs its own (or the |x|^2
+  feature hurts it there just as it does the MLP everywhere). Not yet probed.
