@@ -94,3 +94,29 @@ count. Constellation figure: docs/figures/spike_constellations.png.
 adaptivity (channel-drift) study; a causal/streaming CfC variant for the
 real-time complexity story (368 MACs/symbol at h=8 -- three orders below the
 window-based BiLSTM).
+
+## Input-encoding probes -- the |x|^2 feature is model-dependent, and the MLP wakes up
+
+All at 3 dBm, 12x80 km, same data and budgets as v3 unless noted.
+
+| model | inputs | recipe | BER | Q [dB] |
+|-------|--------|--------|-----|--------|
+| MLP | I,Q,\|x\|^2 | any of 4 probed | 6.6-6.9e-03 | ~7.85 |
+| MLP | I,Q only | lr 1e-3 cos, wd 1e-4 | **1.63e-03** | **9.37** |
+| CfC | I,Q only | v3 recipe, 50 ep | 5.91e-03 | 8.02 |
+| CfC | I,Q,\|x\|^2 | v3 recipe, 50 ep | 4.10e-03 | 8.44 |
+
+Findings:
+1. **The power feature is a trap for the MLP but a help for the CfC.** With
+   \|x\|^2 the MLP reaches *lower MSE but 4x worse BER*: received power acts as
+   a prior on the transmitted ring, so borderline symbols get confidently pulled
+   to the wrong ring (heavy tails). The recurrent CfC integrates power over the
+   window instead of reading it pointwise and net-benefits. Encoding choices are
+   therefore per-model, each probed under equal budgets.
+2. **A properly regularized MLP currently leads the board** (Q 9.37 vs BiLSTM
+   9.02 at 13x fewer MACs). Humbling and worth reporting honestly: at this
+   operating point, window MLPs are strong. The recurrent models have not had
+   an equivalent tuning round yet -- BiLSTM encoding probe running; CfC capacity/
+   depth tuning still to do.
+3. MSE ranks models differently from BER throughout -- any model selection or
+   early stopping should eventually switch to a BER-aligned criterion.

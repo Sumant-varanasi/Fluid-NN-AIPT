@@ -35,7 +35,7 @@ from fluidnn.training.harness import evaluate_equalizer, train_equalizer
 
 HALF_WINDOW = 20
 POWERS_DBM = [-1.0, 1.0, 3.0, 5.0]
-IQ_ONLY_CFC = True  # set from the feature probe result
+IQ_ONLY_CFC = False  # probed 2026-07-14: CfC Q 8.44 with |x|^2 vs 8.02 IQ-only
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "results"
 CKPT_DIR = RESULTS_DIR / "checkpoints"
