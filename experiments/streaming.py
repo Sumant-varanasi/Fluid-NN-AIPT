@@ -1,10 +1,15 @@
 """Streaming CfC benchmark: the O(1)-per-symbol real-time operating mode.
 
-Trains causal streaming CfC equalizers (state carried across the whole symbol
+Trains causal streaming equalizers (state carried across the whole symbol
 stream, ``delay`` symbols of decision latency, no windows, no recomputation)
 and compares them against the window-based results on identical test data.
 The per-symbol cost is one cell update + head: this is the point of the
-continuous-time approach for real-time DSP.
+continuous-time approach for real-time DSP. A streaming LSTM runs as the
+discrete-time control.
+
+Protocol notes (measured, see RESEARCH_LOG): streaming training is
+optimizer-step starved relative to window training -- short chunks and a
+200-epoch budget are required before any streaming model leaves the identity.
 
 Run from the repo root:  python experiments/streaming.py
 Outputs: results/streaming.json, docs/figures/streaming_frontier.png
@@ -28,12 +33,12 @@ from power_sweep import FIGURES_DIR, RESULTS_DIR, link_config
 from fluidnn.channel.dataset import make_stream_chunks, to_real_features
 from fluidnn.channel.link import simulate_link
 from fluidnn.metrics import equalizer_report
-from fluidnn.models import StreamingCfCEqualizer
+from fluidnn.models import StreamingCfCEqualizer, StreamingLSTMEqualizer
 from fluidnn.training.harness import train_equalizer
 
 POWER_DBM = 3.0
-CHUNK, WARMUP, DELAY = 256, 32, 8
-HIDDEN_SIZES = [16, 32, 64]
+CHUNK, WARMUP, DELAY = 64, 32, 8
+EPOCHS = 200
 COLORS = {"CDC+CPE": "#666666", "MLP": "#2a78d6", "BiLSTM": "#1baf7a", "CfC": "#eda100"}
 
 
@@ -68,17 +73,21 @@ def main() -> None:
     results["CDC+CPE"] = base
     print(f"CDC+CPE: BER={base['ber']:.2e}  Q={base['q_db']:.2f}")
 
-    for hidden in HIDDEN_SIZES:
-        name = f"StreamCfC-h{hidden}"
+    zoo = {
+        "StreamLSTM-h32": StreamingLSTMEqualizer(
+            hidden=32, in_channels=3, delay=DELAY, warmup=WARMUP
+        ),
+        "StreamCfC-h32": StreamingCfCEqualizer(
+            hidden=32, backbone_units=64, in_channels=3, delay=DELAY, warmup=WARMUP
+        ),
+    }
+    for name, model in zoo.items():
         print(f"-- training {name} ...")
-        model = StreamingCfCEqualizer(
-            hidden=hidden, backbone_units=64, in_channels=3, delay=DELAY, warmup=WARMUP
-        )
         train_equalizer(
             model,
             train["x"][:-n_val], train["y"][:-n_val],
             train["x"][-n_val:], train["y"][-n_val:],
-            epochs=60, batch_size=32, lr=3e-3, lr_min=1e-4, seed=0, verbose=False,
+            epochs=EPOCHS, batch_size=32, lr=3e-3, lr_min=1e-4, seed=0, verbose=False,
         )
         model.eval()
         with torch.no_grad():
@@ -129,14 +138,14 @@ def make_figure(results: dict) -> None:
                         xycoords=("axes fraction", "data"), va="bottom",
                         fontsize=9, color="#444444")
             continue
-        ax.scatter(r["macs_per_symbol"], r["q_db"], s=56, color=COLORS["CfC"],
-                   marker="D", zorder=3)
+        color = COLORS["CfC"] if "CfC" in name else COLORS["BiLSTM"]
+        ax.scatter(r["macs_per_symbol"], r["q_db"], s=56, color=color, marker="D", zorder=3)
         ax.annotate(name, xy=(r["macs_per_symbol"], r["q_db"]),
                     xytext=(6, -11), textcoords="offset points", fontsize=9)
     ax.set_xscale("log")
     ax.set_xlabel("MACs per recovered symbol")
     ax.set_ylabel("Q-factor [dB]")
-    ax.set_title("Streaming CfC (diamonds) vs window equalizers\n16QAM, 32 GBd, 12 x 80 km @ 3 dBm", fontsize=10)
+    ax.set_title("Streaming equalizers (diamonds) vs window equalizers\n16QAM, 32 GBd, 12 x 80 km @ 3 dBm", fontsize=10)
     ax.grid(True, which="both", linewidth=0.4, alpha=0.35)
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
