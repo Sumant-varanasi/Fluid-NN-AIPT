@@ -196,7 +196,12 @@ identity (Q 7.51 vs baseline 7.52). Probes since:
 3. Suspect: optimizer-step starvation. Streaming chunks give ~10-60x fewer
    optimizer steps per epoch than window training, and every recurrent model
    in this project needed >1000 steps before leaving the identity.
-   Long-budget probe running.
+4. **Confirmed.** Same streaming LSTM, 200 epochs (~2800 steps): val MSE
+   0.0163 -> 0.0116 and still falling, Q 7.5 -> 8.08. The streaming objective
+   trains fine given the budget; the earlier flatline was optimizer steps, not
+   architecture. Full benchmark (StreamCfC-h32 vs StreamLSTM-h32, 200 epochs,
+   full data) re-running.
 
-Until streaming trains, the honest complexity story compares window models
-only; streaming MAC numbers are stated as potential, never with a Q attached.
+Until streaming numbers land, the honest complexity story compares window
+models only; streaming MAC numbers are stated as potential, never with a Q
+attached.
