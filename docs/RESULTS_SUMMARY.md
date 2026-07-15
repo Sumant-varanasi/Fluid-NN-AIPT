@@ -41,12 +41,23 @@ cost becomes plausible for real-time DSP.
 +/-2 dB power drift and +/-160 km distance drift, retaining gains without retraining;
 the BiLSTM fully recovers matched performance from 16k pilot symbols.
 
+**4. Time-varying channel (dual-pol Manakov + endless polarization rotation):**
+training *on* the drifting channel teaches drift-tracking -- at 100 deg/ksym rotation
+the drift-trained BiLSTM retains **+1.5 dB** over the baseline where its static-trained
+twin keeps only +0.5 dB (large effect, consistent across all five models). In this
+time-varying setting the streaming CfC reaches **statistical parity** with the streaming
+LSTM (4 seeds; the LSTM cell wins clearly on every static channel), though the
+hypothesized CfC *advantage* did not survive multi-seed testing.
+
 ## Honest negatives and methodological findings (full diagnoses in the repo log)
 
-- No regime found yet where the CfC *dominates*: a well-regularized window MLP leads
-  offline accuracy; the discrete LSTM cell currently edges the CfC in streaming mode;
-  frozen-drift robustness favours the BiLSTM. The adaptivity hypothesis is untested in
-  its fairest setting — a channel that varies *in time* (see next steps).
+- No regime found where the CfC *dominates*: a well-regularized window MLP leads
+  offline single-pol accuracy; the LSTM cell edges the CfC in streaming mode on static
+  channels (parity under drift); frozen-drift robustness favours the BiLSTM. Every
+  claim in the repo log carries its multi-seed confirmation status.
+- The window MLP — single-pol accuracy leader — cannot learn the dual-pol residual at
+  all (flat at baseline across every recipe probed), while recurrent models extract up
+  to +0.8 dB from the same data: an unexplained architectural effect worth discussing.
 - A physics-informed |x|^2 input is a trap for some architectures: it lowers MSE but
   raises BER (received power acts as a wrong-ring prior on borderline symbols). MSE
   and BER rank models differently throughout — loss design matters.
@@ -55,8 +66,9 @@ the BiLSTM fully recovers matched performance from 16k pilot symbols.
 
 ## Next steps
 
-Dual-polarization channel with **time-varying PMD** — a genuinely drifting channel, the
-fair test of the liquid-network adaptivity claim; tail-aware (BER-aligned) losses;
-leaner streaming CfC variants; CfC training stability across operating points. We would
-value the group's guidance on which of these to prioritize, and on validation against
-experimental captures when the simulation results warrant it.
+Validation on experimental captures (ingestion / alignment / fine-tuning pipeline built
+and rehearsed end to end; simulation-pretrained transfer checkpoints ready — see
+docs/DATA_REQUEST.md for the capture formats we ingest); CfC training stability across
+operating points; tail-aware (BER-aligned) losses; leaner streaming CfC variants;
+first-order PMD in the dual-pol channel. We would value the group's guidance on
+prioritization.
