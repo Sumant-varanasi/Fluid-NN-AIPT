@@ -50,6 +50,12 @@ def get_args():
     p.add_argument("--no-cpe", action="store_true")
     p.add_argument("--cpe-window", type=int, default=32)
     p.add_argument("--epochs", type=int, default=50)
+    p.add_argument(
+        "--checkpoints-dir",
+        default="results/checkpoints_robust",
+        help="if robust checkpoints exist here, each model is ALSO fine-tuned "
+        "from its checkpoint (small captures rarely support from-scratch training)",
+    )
     p.add_argument("--out", default="results/real_eval.json")
     return p.parse_args()
 
@@ -130,22 +136,24 @@ def main() -> None:
     results["no equalizer"] = base
     print(f"no equalizer: BER={base['ber']:.2e}  Q={base['q_db']:.2f} dB")
 
+    import torch
+
     recipes = {
         "MLP": dict(lr=1e-3, lr_min=1e-5, weight_decay=1e-4),
         "BiLSTM": dict(lr=3e-3, lr_min=1e-4),
         "CfC": dict(lr=3e-3, lr_min=1e-4),
     }
-    for name, model in models.items():
-        xf = x if args.dual_pol else feats[name]
-        print(f"-- training {name} on the first 70% ...")
+    ckpt_dir = pathlib.Path(args.checkpoints_dir)
+    ckpt_suffix = "_robust_dp.pt" if args.dual_pol else "_robust_sp.pt"
+
+    def run_variant(label, model, xf, recipe):
+        print(f"-- {label} on the first 70% ...")
         train_equalizer(
             model,
             xf[: split - n_val], y[: split - n_val],
             xf[split - n_val : split], y[split - n_val : split],
-            epochs=args.epochs, batch_size=1024, seed=0, verbose=False, **recipes[name],
+            epochs=args.epochs, batch_size=1024, seed=0, verbose=False, **recipe,
         )
-        import torch
-
         model.eval()
         with torch.no_grad():
             pred = torch.cat(
@@ -159,8 +167,20 @@ def main() -> None:
             rep = equalizer_report(eq, tx[split:], tx_bits[split * qam.bits_per_symbol :], qam)
         rep["params"] = sum(p.numel() for p in model.parameters())
         rep["macs_per_symbol"] = model.macs_per_symbol()
-        results[name] = rep
-        print(f"{name}: BER={rep['ber']:.2e}  Q={rep['q_db']:.2f} dB")
+        results[label] = rep
+        print(f"{label}: BER={rep['ber']:.2e}  Q={rep['q_db']:.2f} dB")
+
+    for name, model in models.items():
+        xf = x if args.dual_pol else feats[name]
+        run_variant(f"{name} (scratch)", model, xf, recipes[name])
+        ckpt = ckpt_dir / f"{name}{ckpt_suffix}"
+        if ckpt.exists():
+            import copy
+
+            ft = copy.deepcopy(model)
+            ft.load_state_dict(torch.load(ckpt, weights_only=True))
+            gentle = {**recipes[name], "lr": recipes[name]["lr"] / 3}
+            run_variant(f"{name} (fine-tuned)", ft, xf, gentle)
 
     out = pathlib.Path(args.out)
     out.parent.mkdir(exist_ok=True)
