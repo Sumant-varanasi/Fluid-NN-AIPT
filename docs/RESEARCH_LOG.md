@@ -279,7 +279,18 @@ static channel (0.32 dB vs 0.64 dB). CfC does not reach window-mode parity;
 its seed variance is again ~3x the BiLSTM's. Streaming parity (see above) and
 window-gap narrowing are the two CfC-favourable, multi-seed-confirmed facts.
 
-## Real-data readiness: transfer rehearsal on a fabricated capture
+## CfC at +1 dBm: not instability -- a stable convergence to the wrong optimum
+
+4 seeds at +1 dBm (results/cfc_stability_p1.json): Q = 10.30/10.32/10.33/10.39
+(std 0.04!). The "+1 dBm pathological run" hypothesis is dead: training is
+perfectly reproducible. The model converges to an *excellent MSE* solution
+(val MSE ~0.0006, EVM ~3%) that is nonetheless ~1 dB worse in Q than a CfC
+trained at +3 dBm and transferred (11.29). This is the strongest instance yet
+of the MSE/BER divergence: at low distortion the MSE-optimal solution buys its
+average accuracy with decision-flipping tails (consistent with the |x|^2
+ring-prior mechanism). Testable next: IQ-only CfC at +1 dBm, and BER-aligned
+losses. The separate observation stands that CfC seed variance under drift is
+~3x the BiLSTM's.
 
 Pipeline built for the expected lab data: ingestion (.mat/.npz/.csv), automatic
 alignment (delay / complex gain / conjugation / pol swap -- all recovered
