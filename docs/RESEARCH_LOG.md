@@ -224,6 +224,40 @@ attached.
   leaner CfC (no backbone) and longer budgets remain unprobed in streaming.
 - Both streaming losses were still falling at epoch 200.
 
+## Dual-pol RSOP drift -- the time-varying channel test (first CfC-positive signal)
+
+Dual-pol 16QAM via Manakov, +5 dBm total, receiver CDC + genie block demux
+(256) + per-pol CPE; endless polarization rotation at 0-100 deg/ksym *during*
+the sequence. Figure: docs/figures/dp_drift_q.png; full numbers
+results/dp_drift.json.
+
+**Q [dB] at drift rate 100 deg/ksym** (baseline 6.43):
+
+| model | trained static (frozen) | trained on drift 100 (matched) |
+|-------|------|------|
+| MLP        | 6.44 | 6.68 |
+| BiLSTM     | 6.92 | **7.93** |
+| CfC        | 6.54 | 7.67 |
+| StreamLSTM | 6.54 | 7.32 |
+| StreamCfC  | 6.53 | **7.44** |
+
+Findings:
+1. **Training on the drifting channel teaches drift-tracking.** Matched models
+   hold nearly flat Q as drift increases while the baseline collapses; at
+   100 deg/ksym the matched BiLSTM keeps +1.50 dB over baseline vs +0.49 for
+   its static-trained twin. This is the study's clearest new result.
+2. **First head-to-head the CfC wins, in the predicted setting:** with drift in
+   training, StreamCfC edges StreamLSTM (7.44 vs 7.32) -- the reverse of every
+   static-channel comparison -- and the window CfC closes its gap to the BiLSTM
+   from 0.61 dB (static) to 0.26 dB. *Caveat: single seed, ~0.1-dB scale;
+   directional until a multi-seed repeat confirms it.*
+3. Robustness-accuracy tradeoff: drift-trained models give up ~0.3-0.9 dB on
+   the static channel.
+4. **Anomaly / open item:** the window MLP -- the single-pol accuracy leader --
+   sits exactly at baseline in every dual-pol condition (identity output). Its
+   recipe (IQ-only, wd 1e-4) has not been re-probed for dual-pol; the BiLSTM's
+   +0.83 dB at drift 0 proves learnable structure exists.
+
 ## Where the thesis stands after the first full benchmark cycle
 
 Supported: learned equalizers give up to +2.2 dB Q across the nonlinear regime;
