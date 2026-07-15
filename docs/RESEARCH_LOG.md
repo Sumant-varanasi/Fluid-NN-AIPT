@@ -251,12 +251,24 @@ Findings:
    static-channel comparison -- and the window CfC closes its gap to the BiLSTM
    from 0.61 dB (static) to 0.26 dB. *Caveat: single seed, ~0.1-dB scale;
    directional until a multi-seed repeat confirms it.*
+   **Multi-seed verdict (4 seeds): NOT confirmed.** StreamCfC mean 7.36
+   (7.12/7.40/7.44/7.48, std 0.16) vs StreamLSTM mean 7.29 (7.22/7.27/7.32/
+   7.35, std 0.06): the means overlap within seed noise, and the CfC's
+   seed-to-seed variance is ~3x the LSTM's -- consistent with the CfC
+   training-stability issue seen at +1 dBm. The honest claim is parity in the
+   drifting setting (vs a clear LSTM edge in static settings), not a CfC win.
+   The window CfC's narrowed gap (0.26 dB) remains single-seed / unconfirmed.
 3. Robustness-accuracy tradeoff: drift-trained models give up ~0.3-0.9 dB on
    the static channel.
 4. **Anomaly / open item:** the window MLP -- the single-pol accuracy leader --
    sits exactly at baseline in every dual-pol condition (identity output). Its
    recipe (IQ-only, wd 1e-4) has not been re-probed for dual-pol; the BiLSTM's
    +0.83 dB at drift 0 proves learnable structure exists.
+   **Probe result: not a recipe problem.** Three variants (lr 1e-3/3e-3, with/
+   without weight decay, with/without |x|^2) all land within 0.03 dB of the
+   baseline. At this size, the flat MLP genuinely cannot extract the dual-pol
+   residual structure that the recurrent models can -- a real architectural
+   effect and an open research question (capacity? cross-pol feature geometry?).
 
 ## Where the thesis stands after the first full benchmark cycle
 
