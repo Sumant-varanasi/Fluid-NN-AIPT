@@ -270,6 +270,37 @@ Findings:
    residual structure that the recurrent models can -- a real architectural
    effect and an open research question (capacity? cross-pol feature geometry?).
 
+## Multi-seed verdict: window models under drift
+
+4 seeds each, matched training at drift 100 deg/ksym (results/dp_window_seeds.json):
+window BiLSTM mean Q **7.91** (std 0.025), window CfC mean **7.59** (std 0.077).
+**Confirmed:** the BiLSTM lead persists under drift but roughly halves vs the
+static channel (0.32 dB vs 0.64 dB). CfC does not reach window-mode parity;
+its seed variance is again ~3x the BiLSTM's. Streaming parity (see above) and
+window-gap narrowing are the two CfC-favourable, multi-seed-confirmed facts.
+
+## Real-data readiness: transfer rehearsal on a fabricated capture
+
+Pipeline built for the expected lab data: ingestion (.mat/.npz/.csv), automatic
+alignment (delay / complex gain / conjugation / pol swap -- all recovered
+exactly on a hostile fabricated capture), chronological split, and evaluation
+(experiments/real_eval.py). Mixed-condition "robust" checkpoints trained on
+pooled {+1,+3,+5} dBm data (single-pol MLP/BiLSTM/CfC; dual-pol BiLSTM/CfC on
+pooled {+3,+5} dBm): each lands within ~0.5 dB of its single-condition
+specialist while covering a 4 dB power range.
+
+**Rehearsal result (33k-symbol capture, baseline Q 7.62):**
+
+| model | from scratch | fine-tuned from robust ckpt |
+|-------|--------------|------------------------------|
+| MLP    | 7.59 | **9.14** |
+| BiLSTM | 7.67 | **9.05** |
+| CfC    | 7.53 | **8.76** |
+
+From-scratch training is useless at this capture size (<=+0.05 dB); fine-tuning
+from the robust checkpoints delivers +1.1-1.5 dB from the same 23k training
+symbols. Transfer, not scratch training, is the plan for the real captures.
+
 ## Where the thesis stands after the first full benchmark cycle
 
 Supported: learned equalizers give up to +2.2 dB Q across the nonlinear regime;
